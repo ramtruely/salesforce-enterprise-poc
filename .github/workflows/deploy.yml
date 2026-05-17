@@ -1,0 +1,113 @@
+name: Salesforce Deployment
+
+on:
+  push:
+    branches:
+      - develop
+      - release
+
+jobs:
+
+  # ---------------------------------------------------
+  # 1. Detect Deployment Context
+  # ---------------------------------------------------
+  detect-deploy-context:
+    runs-on: ubuntu-latest
+
+    outputs:
+      target_env: ${{ steps.env-detect.outputs.env }}
+      first_deploy: ${{ steps.deploy-check.outputs.first_deploy }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      # Detect Environment
+      - name: Detect Environment
+        id: env-detect
+        run: |
+          if [ "${{ github.ref_name }}" == "develop" ]; then
+            echo "env=TEST" >> $GITHUB_OUTPUT
+          else
+            echo "env=LOAD" >> $GITHUB_OUTPUT
+          fi
+
+      # Check Deployment Marker
+      - name: Check Deployment Cache
+        id: cache-check
+        uses: actions/cache@v4
+        with:
+          path: .deploy_marker_${{ steps.env-detect.outputs.env }}
+          key: deploy-marker-${{ steps.env-detect.outputs.env }}-v1
+
+      # Set First Deploy Flag
+      - name: Set First Deploy
+        id: deploy-check
+        run: |
+          if [ "${{ steps.cache-check.outputs.cache-hit }}" == "true" ]; then
+            echo "first_deploy=false" >> $GITHUB_OUTPUT
+          else
+            echo "first_deploy=true" >> $GITHUB_OUTPUT
+          fi
+
+  # ---------------------------------------------------
+  # 2. Deploy
+  # ---------------------------------------------------
+  deploy:
+    runs-on: ubuntu-latest
+    needs: detect-deploy-context
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Salesforce CLI
+        run: npm install -g @salesforce/cli
+
+      # Authenticate TEST
+      - name: Authenticate TEST
+        if: needs.detect-deploy-context.outputs.target_env == 'TEST'
+        run: |
+          echo "${{ secrets.SF_AUTH_TEST }}" > auth.txt
+          sf org login sfdx-url --sfdx-url-file auth.txt --alias TEST
+
+      # Authenticate LOAD
+      - name: Authenticate LOAD
+        if: needs.detect-deploy-context.outputs.target_env == 'LOAD'
+        run: |
+          echo "${{ secrets.SF_AUTH_LOAD }}" > auth.txt
+          sf org login sfdx-url --sfdx-url-file auth.txt --alias LOAD
+
+      # Deploy TEST
+      - name: Deploy to TEST
+        if: needs.detect-deploy-context.outputs.target_env == 'TEST'
+        run: |
+          sf project deploy start \
+            --target-org TEST \
+            --test-level NoTestRun
+
+      # Deploy LOAD
+      - name: Deploy to LOAD
+        if: needs.detect-deploy-context.outputs.target_env == 'LOAD'
+        run: |
+          sf project deploy start \
+            --target-org LOAD \
+            --test-level NoTestRun
+
+      # Create Marker Folder
+      - name: Create Deployment Marker
+        if: needs.detect-deploy-context.outputs.first_deploy == 'true'
+        run: |
+          mkdir -p .deploy_marker_${{ needs.detect-deploy-context.outputs.target_env }}
+          echo "done" > .deploy_marker_${{ needs.detect-deploy-context.outputs.target_env }}/status.txt
+
+      # Save Marker Cache
+      - name: Save Deployment Cache
+        if: needs.detect-deploy-context.outputs.first_deploy == 'true'
+        uses: actions/cache@v4
+        with:
+          path: .deploy_marker_${{ needs.detect-deploy-context.outputs.target_env }}
+          key: deploy-marker-${{ needs.detect-deploy-context.outputs.target_env }}-v1
