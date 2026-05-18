@@ -293,7 +293,7 @@ jobs:
         run: sf org display --target-org LOAD
 
   # ---------------------------------------------------
-  # 7. Final Summary
+  # 7. Final Summary Report
   # ---------------------------------------------------
   summary:
     runs-on: ubuntu-latest
