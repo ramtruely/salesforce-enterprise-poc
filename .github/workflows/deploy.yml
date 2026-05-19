@@ -1,10 +1,13 @@
 name: Salesforce Deployment
 
 on:
-  push:
-    branches:
-      - develop
-      - release
+  workflow_call:
+    secrets:
+      SF_AUTH_TEST:
+        required: true
+
+      SF_AUTH_LOAD:
+        required: true
 
 jobs:
 
