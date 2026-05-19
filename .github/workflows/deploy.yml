@@ -2,6 +2,11 @@ name: Salesforce Deployment
 
 on:
   workflow_call:
+    inputs:
+      target_env: 
+        required: true
+        type: string
+          
     secrets:
       SF_AUTH_TEST:
         required: true
@@ -31,16 +36,8 @@ jobs:
       - name: Detect Environment
         id: env-detect
         run: |
-          echo "Branch Name: ${{ github.ref_name }}"
-
-          if [[ "${{ github.ref_name }}" == "develop" ]]; then
-            echo "env=TEST" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref_name }}" == "release" ]]; then
-            echo "env=LOAD" >> $GITHUB_OUTPUT
-          else
-            echo "Unknown branch"
-            exit 1
-          fi    
+          echo "Target Environment: ${{ inputs.target_env }}"
+          echo "env=${{ inputs.target_env }}" >> $GITHUB_OUTPUT 
 
       # Check Deployment Marker
       - name: Check Deployment Cache
