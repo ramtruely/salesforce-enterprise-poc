@@ -1,10 +1,21 @@
 name: Salesforce Deployment
 
 on:
-  push:
-    branches:
-      - develop
-      - release
+  workflow_call:
+    inputs:
+      target_env: 
+        required: true
+        type: string
+          
+    secrets:
+      SF_AUTH_TEST:
+        required: true
+
+      SF_AUTH_LOAD:
+        required: true
+concurrency:
+  group: salesforce-deploy-${{ inputs.target_env }}
+  cancel-in-progress: false        
 
 jobs:
 
@@ -25,11 +36,8 @@ jobs:
       - name: Detect Environment
         id: env-detect
         run: |
-          if [ "${{ github.ref_name }}" == "develop" ]; then
-            echo "env=TEST" >> $GITHUB_OUTPUT
-          else
-            echo "env=LOAD" >> $GITHUB_OUTPUT
-          fi
+          echo "Target Environment: ${{ inputs.target_env }}"
+          echo "env=${{ inputs.target_env }}" >> $GITHUB_OUTPUT 
 
       # Check Deployment Marker
       - name: Check Deployment Cache

@@ -1,10 +1,18 @@
-name: SF PR Validation
+name: Enterprise PR Validation
 
 on:
-  pull_request:
-    branches:
-      - develop
-      - release
+  workflow_call:
+    inputs:
+      target_env:
+        required: true
+        type: string
+        
+    secrets:
+      SF_AUTH_TEST:
+        required: true
+
+      SF_AUTH_LOAD:
+        required: true
 
 jobs:
 
@@ -22,17 +30,17 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      # -----------------------------------------------
       # Detect Environment
+      # -----------------------------------------------
       - name: Detect Environment
         id: env-detect
         run: |
-          if [ "${{ github.base_ref }}" == "develop" ]; then
-            echo "env=TEST" >> $GITHUB_OUTPUT
-          else
-            echo "env=LOAD" >> $GITHUB_OUTPUT
-          fi
+          echo "env=${{ inputs.target_env }}" >> $GITHUB_OUTPUT
 
+      # -----------------------------------------------
       # Detect First PR
+      # -----------------------------------------------
       - name: Detect First PR
         id: pr-detect
         env:
@@ -52,7 +60,9 @@ jobs:
             echo "first_pr=false" >> $GITHUB_OUTPUT
           fi
 
-      # Detect Deployment History
+      # -----------------------------------------------
+      # Detect First Deployment
+      # -----------------------------------------------
       - name: Check Deployment Cache
         id: cache-check
         uses: actions/cache@v4
@@ -60,7 +70,9 @@ jobs:
           path: .deploy_marker_${{ steps.env-detect.outputs.env }}
           key: deploy-marker-${{ steps.env-detect.outputs.env }}-v1
 
+      # -----------------------------------------------
       # Set Validation Mode
+      # -----------------------------------------------
       - name: Set Validation Mode
         id: validation-mode
         run: |
@@ -73,7 +85,9 @@ jobs:
             echo "mode=full" >> $GITHUB_OUTPUT
           fi
 
-      # Debug
+      # -----------------------------------------------
+      # Debug Context
+      # -----------------------------------------------
       - name: Debug Context
         run: |
           echo "Environment: ${{ steps.env-detect.outputs.env }}"
@@ -102,111 +116,12 @@ jobs:
       - name: Deployment Authentication Validation
         run: echo "Authentication validation passed"
 
+      - name: Basic Validation
+        run: echo "Basic validation passed"
+
   # ---------------------------------------------------
-  # 3. Mixed Enterprise Validation Jobs
+  # 3. Non-Skippable Enterprise Checks
   # ---------------------------------------------------
-
-  sfca-analyzer:
-    runs-on: ubuntu-latest
-    needs: [detect-context, mandatory-checks]
-    if: needs.detect-context.outputs.validation_mode == 'full'
-
-    steps:
-      - name: SFCA Analyzer
-        run: echo "Running SFCA analyzer"
-
-  duplicate-metadata-check:
-    runs-on: ubuntu-latest
-    needs: mandatory-checks
-
-    steps:
-      - name: Duplicate Metadata Detection
-        run: echo "No duplicate metadata found"
-
-  risk-assessment:
-    runs-on: ubuntu-latest
-    needs: [detect-context, mandatory-checks]
-    if: needs.detect-context.outputs.validation_mode == 'full'
-
-    steps:
-      - name: Calculate Risk Assessment
-        run: echo "Running risk assessment"
-
-  basic-pmd:
-    runs-on: ubuntu-latest
-    needs: mandatory-checks
-
-    steps:
-      - name: Basic PMD Validation
-        run: echo "Basic PMD validation passed"
-
-  package-coverage:
-    runs-on: ubuntu-latest
-    needs: [detect-context, mandatory-checks]
-    if: needs.detect-context.outputs.validation_mode == 'full'
-
-    steps:
-      - name: Package Coverage Check
-        run: echo "Running package coverage"
-
-  secret-scan:
-    runs-on: ubuntu-latest
-    needs: mandatory-checks
-
-    steps:
-      - name: Secret Scan
-        run: echo "No secrets detected"
-
-  dev-risk-profile:
-    runs-on: ubuntu-latest
-    needs: [detect-context, mandatory-checks]
-    if: needs.detect-context.outputs.validation_mode == 'full'
-
-    steps:
-      - name: Dev Risk Profile
-        run: echo "Running dev risk profile"
-
-  metadata-structure-validation:
-    runs-on: ubuntu-latest
-    needs: mandatory-checks
-
-    steps:
-      - name: Metadata Structure Validation
-        run: echo "Metadata structure validated"
-
-  sf-unit-test-gate:
-    runs-on: ubuntu-latest
-    needs: [detect-context, mandatory-checks]
-    if: needs.detect-context.outputs.validation_mode == 'full'
-
-    steps:
-      - name: SF Unit Test Gate
-        run: echo "Running SF unit test gate"
-
-  basic-lint:
-    runs-on: ubuntu-latest
-    needs: mandatory-checks
-
-    steps:
-      - name: Basic Lint Validation
-        run: echo "Basic lint validation passed"
-
-  modified-class-coverage:
-    runs-on: ubuntu-latest
-    needs: [detect-context, mandatory-checks]
-    if: needs.detect-context.outputs.validation_mode == 'full'
-
-    steps:
-      - name: SF Coverage Gate for Modified Classes
-        run: echo "Running modified class coverage"
-
-  file-naming-validation:
-    runs-on: ubuntu-latest
-    needs: mandatory-checks
-
-    steps:
-      - name: File Naming Validation
-        run: echo "File naming convention validated"
 
   pr-title-validation:
     runs-on: ubuntu-latest
@@ -218,8 +133,168 @@ jobs:
           TITLE="${{ github.event.pull_request.title }}"
           echo "$TITLE" | grep -E "^(feat|fix|chore|test|refactor):" || exit 1
 
+  duplicate-metadata-check:
+    runs-on: ubuntu-latest
+    needs: mandatory-checks
+
+    steps:
+      - name: Duplicate Metadata Detection
+        run: echo "No duplicate metadata found"
+
+  basic-pmd:
+    runs-on: ubuntu-latest
+    needs: mandatory-checks
+
+    steps:
+      - name: Basic PMD Validation
+        run: echo "Basic PMD validation passed"
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    needs: mandatory-checks
+
+    steps:
+      - name: Secret Scan
+        run: echo "No secrets detected"
+
+  metadata-structure-validation:
+    runs-on: ubuntu-latest
+    needs: mandatory-checks
+
+    steps:
+      - name: Metadata Structure Validation
+        run: echo "Metadata structure validated"
+
+  basic-lint:
+    runs-on: ubuntu-latest
+    needs: mandatory-checks
+
+    steps:
+      - name: Basic Lint Validation
+        run: echo "Basic lint validation passed"
+
+  file-naming-validation:
+    runs-on: ubuntu-latest
+    needs: mandatory-checks
+
+    steps:
+      - name: File Naming Validation
+        run: echo "File naming convention validated"
+
   # ---------------------------------------------------
-  # 4. Summary
+  # 4. Conditional Heavy Checks
+  # ---------------------------------------------------
+
+  sfca-analyzer:
+    runs-on: ubuntu-latest
+    needs: [detect-context, mandatory-checks]
+    if: needs.detect-context.outputs.validation_mode == 'full'
+
+    steps:
+      - name: SFCA Analyzer
+        run: echo "Running SFCA analyzer"
+
+  risk-assessment:
+    runs-on: ubuntu-latest
+    needs: [detect-context, mandatory-checks]
+    if: needs.detect-context.outputs.validation_mode == 'full'
+
+    steps:
+      - name: Calculate Risk Assessment
+        run: echo "Running risk assessment"
+
+  package-coverage:
+    runs-on: ubuntu-latest
+    needs: [detect-context, mandatory-checks]
+    if: needs.detect-context.outputs.validation_mode == 'full'
+
+    steps:
+      - name: Package Coverage Check
+        run: echo "Running package coverage"
+
+  dev-risk-profile:
+    runs-on: ubuntu-latest
+    needs: [detect-context, mandatory-checks]
+    if: needs.detect-context.outputs.validation_mode == 'full'
+
+    steps:
+      - name: Dev Risk Profile
+        run: echo "Running dev risk profile"
+
+  sf-unit-test-gate:
+    runs-on: ubuntu-latest
+    needs: [detect-context, mandatory-checks]
+    if: needs.detect-context.outputs.validation_mode == 'full'
+
+    steps:
+      - name: SF Unit Test Gate
+        run: echo "Running SF unit test gate"
+
+  modified-class-coverage:
+    runs-on: ubuntu-latest
+    needs: [detect-context, mandatory-checks]
+    if: needs.detect-context.outputs.validation_mode == 'full'
+
+    steps:
+      - name: SF Coverage Gate for Modified Classes
+        run: echo "Running modified class coverage"
+
+  # ---------------------------------------------------
+  # 5. TEST Validation
+  # ---------------------------------------------------
+  test-org-validation:
+    runs-on: ubuntu-latest
+    needs:
+      - mandatory-checks
+      - detect-context
+
+    if: needs.detect-context.outputs.target_env == 'TEST'
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Salesforce CLI
+        run: npm install -g @salesforce/cli
+
+      - name: Authenticate TEST
+        run: |
+          echo "${{ secrets.SF_AUTH_TEST }}" > auth.txt
+          sf org login sfdx-url \
+            --sfdx-url-file auth.txt \
+            --alias TEST
+
+      - name: Validate TEST Connection
+        run: sf org display --target-org TEST
+
+  # ---------------------------------------------------
+  # 6. LOAD Validation
+  # ---------------------------------------------------
+  load-org-validation:
+    runs-on: ubuntu-latest
+    needs:
+      - mandatory-checks
+      - detect-context
+
+    if: needs.detect-context.outputs.target_env == 'LOAD'
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Salesforce CLI
+        run: npm install -g @salesforce/cli
+
+      - name: Authenticate LOAD
+        run: |
+          echo "${{ secrets.SF_AUTH_LOAD }}" > auth.txt
+          sf org login sfdx-url \
+            --sfdx-url-file auth.txt \
+            --alias LOAD
+
+      - name: Validate LOAD Connection
+        run: sf org display --target-org LOAD
+
+  # ---------------------------------------------------
+  # 7. Final Summary
   # ---------------------------------------------------
   summary:
     runs-on: ubuntu-latest
@@ -227,19 +302,21 @@ jobs:
     needs:
       - detect-context
       - mandatory-checks
-      - sfca-analyzer
-      - duplicate-metadata-check
-      - risk-assessment
-      - basic-pmd
-      - package-coverage
-      - secret-scan
-      - dev-risk-profile
-      - metadata-structure-validation
-      - sf-unit-test-gate
-      - basic-lint
-      - modified-class-coverage
-      - file-naming-validation
       - pr-title-validation
+      - duplicate-metadata-check
+      - basic-pmd
+      - secret-scan
+      - metadata-structure-validation
+      - basic-lint
+      - file-naming-validation
+      - sfca-analyzer
+      - risk-assessment
+      - package-coverage
+      - dev-risk-profile
+      - sf-unit-test-gate
+      - modified-class-coverage
+      - test-org-validation
+      - load-org-validation
 
     if: always()
 
@@ -249,4 +326,4 @@ jobs:
           echo "Environment: ${{ needs.detect-context.outputs.target_env }}"
           echo "First PR: ${{ needs.detect-context.outputs.first_pr }}"
           echo "Validation Mode: ${{ needs.detect-context.outputs.validation_mode }}"
-          echo "PR Validation Completed"
+          echo "Enterprise PR Validation Completed"
