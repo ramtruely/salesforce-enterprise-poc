@@ -8,6 +8,9 @@ on:
 
       SF_AUTH_LOAD:
         required: true
+concurrency:
+  group: salesforce-deploy-${{ inputs.target_env }}
+  cancel-in-progress: false        
 
 jobs:
 
@@ -28,11 +31,16 @@ jobs:
       - name: Detect Environment
         id: env-detect
         run: |
-          if [ "${{ github.ref_name }}" == "develop" ]; then
+          echo "Branch Name: ${{ github.ref_name }}"
+
+          if [[ "${{ github.ref_name }}" == "develop" ]]; then
             echo "env=TEST" >> $GITHUB_OUTPUT
-          else
+          elif [[ "${{ github.ref_name }}" == "release" ]]; then
             echo "env=LOAD" >> $GITHUB_OUTPUT
-          fi
+          else
+            echo "Unknown branch"
+            exit 1
+          fi    
 
       # Check Deployment Marker
       - name: Check Deployment Cache

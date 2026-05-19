@@ -2,6 +2,11 @@ name: Enterprise PR Validation
 
 on:
   workflow_call:
+    inputs:
+      target_env:
+        required: true
+        type: string
+        
     secrets:
       SF_AUTH_TEST:
         required: true
@@ -31,11 +36,7 @@ jobs:
       - name: Detect Environment
         id: env-detect
         run: |
-          if [ "${{ github.base_ref }}" == "develop" ]; then
-            echo "env=TEST" >> $GITHUB_OUTPUT
-          else
-            echo "env=LOAD" >> $GITHUB_OUTPUT
-          fi
+          echo "env=${{ inputs.target_env }}" >> $GITHUB_OUTPUT
 
       # -----------------------------------------------
       # Detect First PR
